@@ -224,7 +224,11 @@ Private Function FixModule(comp As VBComponent) As Long
     ' =========================================================================
     ' STEP 12: Fix TYPE structure fields containing handles/pointers
     '          These are indented field declarations inside Type...End Type
-    '          Using 4-space indent prefix to avoid hitting Declare/Dim lines
+    '          Using 4-space indent prefix to scope to UDT fields only.
+    '          NOTE: pidlRoot/lpfn/lParam already handled by Steps 9/10 above
+    '          via ByVal/ByRef/bare forms — listed here only as belt-and-suspenders
+    '          for UDT field syntax (no ByVal/ByRef prefix). ReplaceExact now
+    '          guards against double-replacement so no LongPtrPtr can occur.
     ' =========================================================================
     newCode = ReplaceExact(newCode, "    hIcon As Long", "    hIcon As LongPtr", changes)
     newCode = ReplaceExact(newCode, "    hwndOwner As Long", "    hwndOwner As LongPtr", changes)
@@ -353,15 +357,59 @@ End Function
 ' =============================================================================
 Private Function ReplaceExact(source As String, findStr As String, _
                                replaceStr As String, ByRef changes As Long) As String
-    Dim result As String
-    Dim count  As Long
+    ' Safety: if findStr is a substring of replaceStr (e.g. "As Long" inside
+    ' "As LongPtr"), we must skip positions already replaced to prevent
+    ' double-replacement producing "As LongPtrPtr" etc.
+    Dim resultBuf As String
+    Dim pos       As Long
+    Dim countSafe As Long
+    Dim extraChars As String
 
-    count = (Len(source) - Len(Replace(source, findStr, ""))) \ Len(findStr)
+    resultBuf = source
+    countSafe = 0
 
-    If count > 0 Then
-        result = Replace(source, findStr, replaceStr)
-        changes = changes + count
-        ReplaceExact = result
+    If Len(findStr) = 0 Then
+        ReplaceExact = source
+        Exit Function
+    End If
+
+    ' Determine if findStr is a prefix of replaceStr (the dangerous case)
+    Dim findIsPrefix As Boolean
+    findIsPrefix = (Left(UCase(replaceStr), Len(findStr)) = UCase(findStr)) And _
+                   (Len(replaceStr) > Len(findStr))
+
+    If findIsPrefix Then
+        ' Extra characters that replaceStr adds beyond findStr
+        extraChars = Mid(replaceStr, Len(findStr) + 1)
+        pos = 1
+        Do
+            pos = InStr(pos, resultBuf, findStr)
+            If pos = 0 Then Exit Do
+            ' Check if already replaced — look at chars immediately after findStr
+            Dim following As String
+            following = Mid(resultBuf, pos + Len(findStr), Len(extraChars))
+            If UCase(following) = UCase(extraChars) Then
+                ' Already has the extra chars — skip past to avoid double hit
+                pos = pos + Len(replaceStr)
+            Else
+                ' Safe to replace
+                resultBuf = Left(resultBuf, pos - 1) & replaceStr & _
+                            Mid(resultBuf, pos + Len(findStr))
+                countSafe = countSafe + 1
+                pos = pos + Len(replaceStr)
+            End If
+        Loop
+    Else
+        ' Simple case — findStr not a prefix of replaceStr, no double-hit risk
+        countSafe = (Len(resultBuf) - Len(Replace(resultBuf, findStr, ""))) \ Len(findStr)
+        If countSafe > 0 Then
+            resultBuf = Replace(resultBuf, findStr, replaceStr)
+        End If
+    End If
+
+    If countSafe > 0 Then
+        changes = changes + countSafe
+        ReplaceExact = resultBuf
     Else
         ReplaceExact = source
     End If
