@@ -1,0 +1,245 @@
+==============================================================================
+STGC-Legacy VBA — 32-bit to 64-bit API Conversion
+ORDERED FIND/REPLACE STEPS — Apply in This Exact Sequence
+==============================================================================
+Use: VBA IDE → Edit → Find (Ctrl+H), check "Current Project", case-sensitive
+==============================================================================
+
+--- STEP 1: Add PtrSafe (MUST BE FIRST — Use Case-Insensitive Match) ----------
+
+FIND:    Declare Function
+REPLACE: Declare PtrSafe Function
+
+FIND:    Declare Sub
+REPLACE: Declare PtrSafe Sub
+
+  >> After Step 1: Search for "Declare PtrSafe PtrSafe" — fix any doubles <<
+
+--- STEP 2: Window Handles (HWND) ---------------------------------------------
+
+FIND:    ByVal hWnd As Long
+REPLACE: ByVal hWnd As LongPtr
+
+FIND:    ByVal hwnd As Long
+REPLACE: ByVal hwnd As LongPtr
+
+FIND:    ByVal hWndParent As Long
+REPLACE: ByVal hWndParent As LongPtr
+
+FIND:    ByVal hwndOwner As Long
+REPLACE: ByVal hwndOwner As LongPtr
+
+FIND:    ByVal hWndOwner As Long
+REPLACE: ByVal hWndOwner As LongPtr
+
+FIND:    ByRef hWnd As Long
+REPLACE: ByRef hWnd As LongPtr
+
+--- STEP 3: Generic Handles (HINSTANCE, HICON, HBITMAP, HMENU, etc.) ---------
+
+FIND:    ByVal hInst As Long
+REPLACE: ByVal hInst As LongPtr
+
+FIND:    ByVal hInstance As Long
+REPLACE: ByVal hInstance As LongPtr
+
+FIND:    ByVal hIcon As Long
+REPLACE: ByVal hIcon As LongPtr
+
+FIND:    ByVal hBitmap As Long
+REPLACE: ByVal hBitmap As LongPtr
+
+FIND:    ByVal hMenu As Long
+REPLACE: ByVal hMenu As LongPtr
+
+FIND:    ByVal hModule As Long
+REPLACE: ByVal hModule As LongPtr
+
+FIND:    ByVal hMem As Long
+REPLACE: ByVal hMem As LongPtr
+
+FIND:    ByVal hDC As Long
+REPLACE: ByVal hDC As LongPtr
+
+FIND:    ByVal hFile As Long
+REPLACE: ByVal hFile As LongPtr
+
+FIND:    ByVal hObject As Long
+REPLACE: ByVal hObject As LongPtr
+
+FIND:    ByVal hProcess As Long
+REPLACE: ByVal hProcess As LongPtr
+
+--- STEP 4: Registry Handles (HKEY) ------------------------------------------
+
+FIND:    ByVal hKey As Long
+REPLACE: ByVal hKey As LongPtr
+
+FIND:    ByRef hKey As Long
+REPLACE: ByRef hKey As LongPtr
+
+FIND:    phkResult As Long
+REPLACE: phkResult As LongPtr
+
+--- STEP 5: WinInet / FTP Handles --------------------------------------------
+
+FIND:    ByVal hInternet As Long
+REPLACE: ByVal hInternet As LongPtr
+
+FIND:    ByVal hConnect As Long
+REPLACE: ByVal hConnect As LongPtr
+
+FIND:    ByVal hFtpSession As Long
+REPLACE: ByVal hFtpSession As LongPtr
+
+FIND:    ByVal hConnection As Long
+REPLACE: ByVal hConnection As LongPtr
+
+FIND:    ByVal dwContext As Long
+REPLACE: ByVal dwContext As LongPtr
+
+--- STEP 6: Message Parameters (SendMessage lParam/wParam) -------------------
+
+FIND:    ByVal wParam As Long
+REPLACE: ByVal wParam As LongPtr
+
+FIND:    ByVal lParam As Long
+REPLACE: ByVal lParam As LongPtr
+
+FIND:    ByRef lParam As Long
+REPLACE: ByRef lParam As LongPtr
+
+FIND:    lParam As Long
+REPLACE: lParam As LongPtr
+
+  >> NOTE: This last one is broad — verify it only hits Declare/Type lines <<
+
+--- STEP 7: Shell Pointer Parameters (PIDL) ----------------------------------
+
+FIND:    ByVal pidl As Long
+REPLACE: ByVal pidl As LongPtr
+
+FIND:    ByRef pidl As Long
+REPLACE: ByRef pidl As LongPtr
+
+FIND:    pidlRoot As Long
+REPLACE: pidlRoot As LongPtr
+
+FIND:    lpfn As Long
+REPLACE: lpfn As LongPtr
+
+--- STEP 8: TYPE Structure Fields (UDTs containing handles) ------------------
+
+  >> Open each Type...End Type block and fix these fields manually or via: <<
+
+FIND:    hIcon As Long
+REPLACE: hIcon As LongPtr
+
+FIND:    hwndOwner As Long
+REPLACE: hwndOwner As LongPtr
+
+  (in BROWSEINFO struct)
+FIND:    pidlRoot As Long
+REPLACE: pidlRoot As LongPtr
+
+  (in BROWSEINFO struct)
+FIND:    lParam As Long
+REPLACE: lParam As LongPtr
+
+  >> NOTE: Be careful — "lParam As Long" replace only inside Type blocks <<
+
+--- STEP 9: Local Variable Declarations (Dim statements) ---------------------
+
+FIND:    Dim hWnd As Long
+REPLACE: Dim hWnd As LongPtr
+
+FIND:    Dim hwnd As Long
+REPLACE: Dim hwnd As LongPtr
+
+FIND:    Dim hInst As Long
+REPLACE: Dim hInst As LongPtr
+
+FIND:    Dim hIcon As Long
+REPLACE: Dim hIcon As LongPtr
+
+FIND:    Dim hInternet As Long
+REPLACE: Dim hInternet As LongPtr
+
+FIND:    Dim hConnect As Long
+REPLACE: Dim hConnect As LongPtr
+
+FIND:    Dim hFTP As Long
+REPLACE: Dim hFTP As LongPtr
+
+FIND:    Dim hKey As Long
+REPLACE: Dim hKey As LongPtr
+
+FIND:    Dim hMem As Long
+REPLACE: Dim hMem As LongPtr
+
+FIND:    Dim hDC As Long
+REPLACE: Dim hDC As LongPtr
+
+FIND:    Dim lParam As Long
+REPLACE: Dim lParam As LongPtr
+
+FIND:    Dim wParam As Long
+REPLACE: Dim wParam As LongPtr
+
+FIND:    Dim pidl As Long
+REPLACE: Dim pidl As LongPtr
+
+--- STEP 10: MANUAL FIXES — Function Return Types (cannot be automated) ------
+
+  These Declare Function lines return handles/pointers and need manual update.
+  Search for each function name and change the trailing ") As Long" to LongPtr:
+
+  Functions returning LongPtr (handles/pointers):
+  -----------------------------------------------
+  GetWindow            (...) As LongPtr
+  FindWindow           (...) As LongPtr
+  FindWindowEx         (...) As LongPtr
+  ShellExecute         (...) As LongPtr
+  LoadImage            (...) As LongPtr
+  SHBrowseForFolder    (...) As LongPtr
+  GetClipboardData     (...) As LongPtr
+  SetClipboardData     (...) As LongPtr
+  InternetOpen         (...) As LongPtr
+  InternetConnect      (...) As LongPtr
+  FtpOpenFile          (...) As LongPtr
+  SendMessage          (...) As LongPtr
+
+  Functions that KEEP As Long return type (BOOL, error code, count):
+  -----------------------------------------------------------------
+  OpenClipboard        (...) As Long   (returns BOOL)
+  CloseClipboard       (...) As Long   (returns BOOL)
+  EmptyClipboard       (...) As Long   (returns BOOL)
+  ShowWindow           (...) As Long   (returns BOOL)
+  RegOpenKey           (...) As Long   (returns error code)
+  RegOpenKeyEx         (...) As Long   (returns error code)
+  RegCloseKey          (...) As Long   (returns error code)
+  RegQueryValueEx      (...) As Long   (returns error code)
+  RegSetValueEx        (...) As Long   (returns error code)
+  RegCreateKey         (...) As Long   (returns error code)
+  RegDeleteKey         (...) As Long   (returns error code)
+  GetClassName         (...) As Long   (returns char count)
+  GetPrivateProfileString (...) As Long (returns char count)
+  WritePrivateProfileString (...) As Long (returns BOOL)
+  InternetCloseHandle  (...) As Long   (returns BOOL)
+  FtpGetFile           (...) As Long   (returns BOOL)
+
+==============================================================================
+AFTER ALL STEPS:
+  1. VBA IDE → Debug → Compile (zero errors = success)
+  2. If errors remain: check the error line, it will be a pointer/handle mismatch
+  3. Common post-fix errors:
+     - "Type mismatch": A Long variable receiving a LongPtr function result
+       → Change the variable declaration to LongPtr
+     - "Expected: expression": Usually a syntax error from bad replace
+       → Undo (Ctrl+Z) that specific replace and redo manually
+     - Comparison of LongPtr to 0: Use "= 0" or "= CLngPtr(0)" — both work
+==============================================================================
+QUICK RULE REMINDER:
+  LongPtr = Any Windows HANDLE, pointer, hWnd, hKey, pidl, lParam, wParam
+  Long    = Counts, flags, boolean returns (BOOL), error codes, string lengths
+==============================================================================
