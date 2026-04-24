@@ -357,55 +357,58 @@ End Function
 ' =============================================================================
 Private Function ReplaceExact(source As String, findStr As String, _
                                replaceStr As String, ByRef changes As Long) As String
-    ' Safety: if findStr is a substring of replaceStr (e.g. "As Long" inside
-    ' "As LongPtr"), we must skip positions already replaced to prevent
-    ' double-replacement producing "As LongPtrPtr" etc.
+    ' Verified safe replacement using position-by-position scan.
+    ' At each position:
+    '   1. If replaceStr already present -> skip past it (never double-replace)
+    '   2. If findStr present -> replace with replaceStr, advance past findStr
+    '   3. Otherwise -> advance one character
+    ' Guaranteed: "As Long" -> "As LongPtr" will NEVER produce "As LongPtrPtr"
+    ' no matter how many times the script runs or in what order steps execute.
     Dim resultBuf As String
-    Dim pos       As Long
+    Dim i         As Long
     Dim countSafe As Long
-    Dim extraChars As String
-
-    resultBuf = source
-    countSafe = 0
+    Dim findLen   As Long
+    Dim repLen    As Long
+    Dim srcLen    As Long
 
     If Len(findStr) = 0 Then
         ReplaceExact = source
         Exit Function
     End If
 
-    ' Determine if findStr is a prefix of replaceStr (the dangerous case)
-    Dim findIsPrefix As Boolean
-    findIsPrefix = (Left(UCase(replaceStr), Len(findStr)) = UCase(findStr)) And _
-                   (Len(replaceStr) > Len(findStr))
+    findLen = Len(findStr)
+    repLen  = Len(replaceStr)
+    srcLen  = Len(source)
+    countSafe = 0
+    resultBuf = ""
 
-    If findIsPrefix Then
-        ' Extra characters that replaceStr adds beyond findStr
-        extraChars = Mid(replaceStr, Len(findStr) + 1)
-        pos = 1
-        Do
-            pos = InStr(pos, resultBuf, findStr)
-            If pos = 0 Then Exit Do
-            ' Check if already replaced — look at chars immediately after findStr
-            Dim following As String
-            following = Mid(resultBuf, pos + Len(findStr), Len(extraChars))
-            If UCase(following) = UCase(extraChars) Then
-                ' Already has the extra chars — skip past to avoid double hit
-                pos = pos + Len(replaceStr)
-            Else
-                ' Safe to replace
-                resultBuf = Left(resultBuf, pos - 1) & replaceStr & _
-                            Mid(resultBuf, pos + Len(findStr))
-                countSafe = countSafe + 1
-                pos = pos + Len(replaceStr)
+    i = 1
+    Do While i <= srcLen
+        ' Priority 1: check if replaceStr already present (already converted)
+        If repLen > 0 And (i + repLen - 1) <= srcLen Then
+            If UCase(Mid(source, i, repLen)) = UCase(replaceStr) Then
+                resultBuf = resultBuf & Mid(source, i, repLen)
+                i = i + repLen
+                GoTo ContinueLoop
             End If
-        Loop
-    Else
-        ' Simple case — findStr not a prefix of replaceStr, no double-hit risk
-        countSafe = (Len(resultBuf) - Len(Replace(resultBuf, findStr, ""))) \ Len(findStr)
-        If countSafe > 0 Then
-            resultBuf = Replace(resultBuf, findStr, replaceStr)
         End If
-    End If
+
+        ' Priority 2: check if findStr present (needs converting)
+        If (i + findLen - 1) <= srcLen Then
+            If UCase(Mid(source, i, findLen)) = UCase(findStr) Then
+                resultBuf = resultBuf & replaceStr
+                i = i + findLen
+                countSafe = countSafe + 1
+                GoTo ContinueLoop
+            End If
+        End If
+
+        ' Default: copy one character
+        resultBuf = resultBuf & Mid(source, i, 1)
+        i = i + 1
+
+ContinueLoop:
+    Loop
 
     If countSafe > 0 Then
         changes = changes + countSafe
