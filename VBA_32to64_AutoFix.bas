@@ -275,12 +275,43 @@ Private Function FixModule(comp As VBComponent) As Long
     newCode = ReplaceExact(newCode, "ByVal lngKey As Long", "ByVal lngKey As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef lngKey As Long", "ByRef lngKey As LongPtr", changes)
 
+    ' lp-prefix Hungarian notation pointer/handle variables (this codebase)
+    ' These hold return values from pointer-returning APIs like SHBrowseForFolder,
+    ' GlobalAlloc, FindFirstFile, InternetOpen, GetClipboardData etc.
+    newCode = ReplaceExact(newCode, "Dim lpIDList As Long", "Dim lpIDList As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpidl As Long", "Dim lpidl As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpIDL As Long", "Dim lpIDL As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpHandle As Long", "Dim lpHandle As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpHwnd As Long", "Dim lpHwnd As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpHWnd As Long", "Dim lpHWnd As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpMem As Long", "Dim lpMem As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpData As Long", "Dim lpData As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lpBuffer As Long", "Dim lpBuffer As LongPtr", changes)
+
+    ' Also fix lp-prefix as function/sub parameters
+    newCode = ReplaceExact(newCode, "ByVal lpIDList As Long", "ByVal lpIDList As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByRef lpIDList As Long", "ByRef lpIDList As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByVal lpHandle As Long", "ByVal lpHandle As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByRef lpHandle As Long", "ByRef lpHandle As LongPtr", changes)
+
     ' =========================================================================
     ' STEP 14: Fix RegEnumKeyEx handle parameters (advapi32.dll)
     ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal hkResult As Long", "ByVal hkResult As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef hkResult As Long", "ByRef hkResult As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim hkResult As Long", "Dim hkResult As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 14b: Fix hWnd/handle params in regular VBA Function/Sub signatures
+    '           (not just Declare lines) — e.g. BrowseForFolder(hWndOwner As Long)
+    '           These are wrapper functions that pass handles through to APIs
+    ' =========================================================================
+    newCode = ReplaceExact(newCode, "hWndOwner As Long", "hWndOwner As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "hWndParent As Long", "hWndParent As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "hWnd As Long", "hWnd As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "hwnd As Long", "hwnd As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "hOwner As Long", "hOwner As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "hParent As Long", "hParent As LongPtr", changes)
 
     ' =========================================================================
     ' STEP 15: Fix function return types for unambiguous handle-returning APIs
