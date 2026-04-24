@@ -116,6 +116,13 @@ Private Function FixModule(comp As VBComponent) As Long
     newCode = code
 
     ' =========================================================================
+    ' STEP 0: Safety cleanup — fix any LongPtrPtr typos from previous runs
+    '         Must run BEFORE everything else
+    ' =========================================================================
+    newCode = ReplaceExact(newCode, "As LongPtrPtr", "As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "As LongPtr Ptr", "As LongPtr", changes)
+
+    ' =========================================================================
     ' STEP 1: Add PtrSafe to Declare Function/Sub (case-insensitive search)
     '         Must run FIRST before any other replacements.
     ' =========================================================================
@@ -192,10 +199,12 @@ Private Function FixModule(comp As VBComponent) As Long
 
     ' =========================================================================
     ' STEP 9: Fix lParam / wParam (SendMessage and UDT fields)
+    '         NOTE: bare "lParam As Long" removed — too broad, caused LongPtrPtr
+    '         The ByVal/ByRef versions cover all Declare line cases safely.
+    '         UDT lParam field is handled in STEP 12 (indented Type block).
     ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal lParam As Long", "ByVal lParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef lParam As Long", "ByRef lParam As LongPtr", changes)
-    newCode = ReplaceExact(newCode, "lParam As Long", "lParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal wParam As Long", "ByVal wParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef wParam As Long", "ByRef wParam As LongPtr", changes)
 
@@ -215,14 +224,21 @@ Private Function FixModule(comp As VBComponent) As Long
     ' =========================================================================
     ' STEP 12: Fix TYPE structure fields containing handles/pointers
     '          These are indented field declarations inside Type...End Type
+    '          Using 4-space indent prefix to avoid hitting Declare/Dim lines
     ' =========================================================================
     newCode = ReplaceExact(newCode, "    hIcon As Long", "    hIcon As LongPtr", changes)
     newCode = ReplaceExact(newCode, "    hwndOwner As Long", "    hwndOwner As LongPtr", changes)
     newCode = ReplaceExact(newCode, "    hWnd As Long", "    hWnd As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "    lParam As Long", "    lParam As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "    pidlRoot As Long", "    pidlRoot As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "    lpfn As Long", "    lpfn As LongPtr", changes)
 
     ' =========================================================================
     ' STEP 13: Fix Dim statements for handle/pointer variables
+    '          Includes standard h-prefix names AND lng-prefix Hungarian notation
+    '          names used in this codebase (e.g. lngRootKey, lngKeyHandle)
     ' =========================================================================
+    ' Standard h-prefix handle variables
     newCode = ReplaceExact(newCode, "Dim hWnd As Long", "Dim hWnd As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim hwnd As Long", "Dim hwnd As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim hInst As Long", "Dim hInst As LongPtr", changes)
@@ -237,6 +253,55 @@ Private Function FixModule(comp As VBComponent) As Long
     newCode = ReplaceExact(newCode, "Dim lParam As Long", "Dim lParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim wParam As Long", "Dim wParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim pidl As Long", "Dim pidl As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim hFindFile As Long", "Dim hFindFile As LongPtr", changes)
+
+    ' lng-prefix Hungarian notation registry handle variables (this codebase)
+    newCode = ReplaceExact(newCode, "Dim lngRootKey As Long", "Dim lngRootKey As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngKeyHandle As Long", "Dim lngKeyHandle As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngKey As Long", "Dim lngKey As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngHandle As Long", "Dim lngHandle As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngHwnd As Long", "Dim lngHwnd As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngHWnd As Long", "Dim lngHWnd As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngHWND As Long", "Dim lngHWND As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngInternet As Long", "Dim lngInternet As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngConnect As Long", "Dim lngConnect As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim lngFTP As Long", "Dim lngFTP As LongPtr", changes)
+
+    ' Also fix lng-prefix as function/sub parameters on Declare lines
+    newCode = ReplaceExact(newCode, "ByVal lngRootKey As Long", "ByVal lngRootKey As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByRef lngRootKey As Long", "ByRef lngRootKey As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByVal lngKeyHandle As Long", "ByVal lngKeyHandle As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByRef lngKeyHandle As Long", "ByRef lngKeyHandle As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByVal lngKey As Long", "ByVal lngKey As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByRef lngKey As Long", "ByRef lngKey As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 14: Fix RegEnumKeyEx handle parameters (advapi32.dll)
+    ' =========================================================================
+    newCode = ReplaceExact(newCode, "ByVal hkResult As Long", "ByVal hkResult As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByRef hkResult As Long", "ByRef hkResult As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim hkResult As Long", "Dim hkResult As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 15: Fix function return types for unambiguous handle-returning APIs
+    '          Works line-by-line: finds the Declare line containing the
+    '          function name and changes its trailing ") As Long" to LongPtr.
+    '          Only functions where return type is ALWAYS a handle/pointer.
+    ' =========================================================================
+    newCode = FixReturnType(newCode, "InternetOpen", changes)
+    newCode = FixReturnType(newCode, "InternetConnect", changes)
+    newCode = FixReturnType(newCode, "FtpOpenFile", changes)
+    newCode = FixReturnType(newCode, "GlobalAlloc", changes)
+    newCode = FixReturnType(newCode, "GlobalLock", changes)
+    newCode = FixReturnType(newCode, "FindFirstFile", changes)
+    newCode = FixReturnType(newCode, "SHBrowseForFolder", changes)
+    newCode = FixReturnType(newCode, "GetClipboardData", changes)
+    newCode = FixReturnType(newCode, "SetClipboardData", changes)
+    newCode = FixReturnType(newCode, "LoadImage", changes)
+    newCode = FixReturnType(newCode, "ShellExecute", changes)
+    newCode = FixReturnType(newCode, "GetWindow", changes)
+    newCode = FixReturnType(newCode, "SendMessage", changes)
+    newCode = FixReturnType(newCode, "lstrcat", changes)
 
     ' =========================================================================
     ' Apply changes back to the module only if something changed
@@ -316,6 +381,71 @@ Private Function ReplaceWord(source As String, findStr As String, _
     Else
         ReplaceWord = source
     End If
+End Function
+
+' =============================================================================
+' Helper: Fix return type on a Declare Function line containing funcName
+' Finds the LAST line of the declaration (the one ending ") As Long") and
+' changes it to ") As LongPtr" — only when it's a Declare PtrSafe Function line.
+' Safe: only acts on lines that contain both the function name AND "As Long"
+' at the end, and only within a Declare block.
+' =============================================================================
+Private Function FixReturnType(source As String, funcName As String, _
+                                ByRef changes As Long) As String
+    Dim lines()     As String
+    Dim i           As Long
+    Dim inDeclare   As Boolean
+    Dim result      As String
+    Dim changed     As Boolean
+
+    lines = Split(source, vbCrLf)
+    inDeclare = False
+
+    For i = 0 To UBound(lines)
+        Dim lineU As String
+        lineU = UCase(Trim(lines(i)))
+
+        ' Detect start of a Declare PtrSafe Function line containing our function
+        If InStr(1, lineU, "DECLARE PTRSAFE FUNCTION") > 0 And _
+           InStr(1, UCase(lines(i)), UCase(funcName)) > 0 Then
+            inDeclare = True
+        End If
+
+        ' If we're in the right Declare block, look for the closing ") As Long"
+        If inDeclare Then
+            ' The closing line ends with ") As Long" (possibly with spaces/comment)
+            ' Must NOT already be LongPtr
+            If InStr(1, lineU, ") AS LONG") > 0 And _
+               InStr(1, lineU, "LONGPTR") = 0 Then
+                ' Replace ") As Long" with ") As LongPtr" on this line
+                ' Case-preserving: find the exact position
+                Dim pos As Long
+                pos = InStr(1, UCase(lines(i)), ") AS LONG")
+                If pos > 0 Then
+                    ' Make sure it's truly at the end (allow trailing spaces/comment)
+                    Dim tail As String
+                    tail = Trim(Mid(lines(i), pos + 9)) ' everything after ") As Long"
+                    ' tail should be empty or start with ' (comment)
+                    If Len(tail) = 0 Or Left(tail, 1) = "'" Then
+                        lines(i) = Left(lines(i), pos - 1) & ") As LongPtr" & _
+                                   IIf(Len(tail) > 0, " " & tail, "")
+                        changes = changes + 1
+                        inDeclare = False
+                    End If
+                End If
+            End If
+            ' Line continuation "_" means declaration continues — stay in block
+            If Right(Trim(lines(i)), 1) <> "_" Then
+                ' No continuation — if we haven't found the closing yet, exit
+                If InStr(1, lineU, ") AS LONG") = 0 And _
+                   InStr(1, lineU, ") AS LONGPTR") = 0 Then
+                    inDeclare = False
+                End If
+            End If
+        End If
+    Next i
+
+    FixReturnType = Join(lines, vbCrLf)
 End Function
 
 ' =============================================================================
