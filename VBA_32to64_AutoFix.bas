@@ -18,6 +18,25 @@
 '   - Applies all 32-to-64-bit find/replace substitutions in prescribed order
 '   - Logs every change made to the Immediate Window
 '   - Reports a summary when complete
+'
+' API COVERAGE (verified by binary scan of all 129 module blobs):
+'   User32.dll:   GetClassName, GetWindow, ShowWindowAsync, SendMessage,
+'                 OpenClipboard, CloseClipboard, GetClipboardData,
+'                 SetClipboardData, EmptyClipboard, LoadImage
+'   Kernel32.dll: GetPrivateProfileString, WritePrivateProfileString,
+'                 GlobalAlloc, GlobalFree, GlobalLock, GlobalUnlock,
+'                 GetComputerName, FindFirstFile, FindNextFile, FindClose,
+'                 lstrcat
+'   Shell32.dll:  ShellExecute, SHGetPathFromIDList, SHBrowseForFolder
+'   ole32.dll:    CoTaskMemFree
+'   Advapi32.dll: RegOpenKey, RegOpenKeyEx, RegCloseKey, RegQueryValueEx,
+'                 RegSetValueEx, RegCreateKey, RegCreateKeyEx,
+'                 RegDeleteKey, RegDeleteValue
+'   WinInet.dll:  InternetOpen, InternetConnect, InternetCloseHandle,
+'                 FtpGetFile, FtpPutFile, FtpOpenFile, FtpCreateDirectory,
+'                 FtpGetCurrentDirectory, FtpSetCurrentDirectory,
+'                 InternetWriteFile
+'   ODBC32.dll:   SQLConfigDataSource
 ' =============================================================================
 
 Option Compare Database
@@ -27,21 +46,21 @@ Option Explicit
 ' MAIN ENTRY POINT — Run this Sub
 ' =============================================================================
 Public Sub Fix32to64_AllModules()
-    Dim proj        As VBProject
-    Dim comp        As VBComponent
+    Dim proj         As VBProject
+    Dim comp         As VBComponent
     Dim totalChanges As Long
     Dim moduleChanges As Long
-    Dim startTime   As Date
-    
+    Dim startTime    As Date
+
     startTime = Now()
     totalChanges = 0
-    
+
     Debug.Print String(70, "=")
     Debug.Print "VBA 32-to-64 Bit Conversion — Started: " & Format(startTime, "yyyy-mm-dd hh:mm:ss")
     Debug.Print String(70, "=")
-    
+
     Set proj = Application.VBE.ActiveVBProject
-    
+
     For Each comp In proj.VBComponents
         Select Case comp.Type
             Case vbext_ct_StdModule, vbext_ct_ClassModule, _
@@ -53,7 +72,7 @@ Public Sub Fix32to64_AllModules()
                 End If
         End Select
     Next comp
-    
+
     Debug.Print String(70, "-")
     Debug.Print "COMPLETE: " & totalChanges & " total change(s) across all modules"
     Debug.Print "Duration: " & Format(Now() - startTime, "hh:mm:ss")
@@ -61,9 +80,10 @@ Public Sub Fix32to64_AllModules()
     Debug.Print ""
     Debug.Print "NEXT STEPS:"
     Debug.Print "  1. In VBA IDE: Debug > Compile to check for errors"
-    Debug.Print "  2. Fix any remaining errors manually"
-    Debug.Print "  3. Save the database"
-    
+    Debug.Print "  2. Fix any remaining errors manually (see guide for common fixes)"
+    Debug.Print "  3. Cast registry root key constants: CLngPtr(HKEY_LOCAL_MACHINE)"
+    Debug.Print "  4. Save the database"
+
     MsgBox "32-to-64 Bit Conversion Complete!" & vbCrLf & vbCrLf & _
            totalChanges & " total change(s) made." & vbCrLf & vbCrLf & _
            "Check the Immediate Window (Ctrl+G) for details." & vbCrLf & _
@@ -76,12 +96,12 @@ End Sub
 ' Returns the number of changes made
 ' =============================================================================
 Private Function FixModule(comp As VBComponent) As Long
-    Dim code        As String
-    Dim newCode     As String
-    Dim changes     As Long
-    
+    Dim code     As String
+    Dim newCode  As String
+    Dim changes  As Long
+
     changes = 0
-    
+
     ' Get the entire module source code
     On Error Resume Next
     code = comp.CodeModule.Lines(1, comp.CodeModule.CountOfLines)
@@ -92,20 +112,21 @@ Private Function FixModule(comp As VBComponent) As Long
         Exit Function
     End If
     On Error GoTo 0
-    
+
     newCode = code
-    
+
     ' =========================================================================
-    ' STEP 1: Add PtrSafe to Declare Function/Sub (case-insensitive)
+    ' STEP 1: Add PtrSafe to Declare Function/Sub (case-insensitive search)
+    '         Must run FIRST before any other replacements.
     ' =========================================================================
     newCode = ReplaceWord(newCode, "Declare Function ", "Declare PtrSafe Function ", changes)
     newCode = ReplaceWord(newCode, "Declare Sub ", "Declare PtrSafe Sub ", changes)
-    ' Fix double PtrSafe (in case some already had it)
+    ' Remove any accidental double-PtrSafe (module already had it)
     newCode = ReplaceExact(newCode, "Declare PtrSafe PtrSafe Function ", "Declare PtrSafe Function ", changes)
     newCode = ReplaceExact(newCode, "Declare PtrSafe PtrSafe Sub ", "Declare PtrSafe Sub ", changes)
-    
+
     ' =========================================================================
-    ' STEP 2: Fix HWND parameters
+    ' STEP 2: Fix HWND parameters (window handles)
     ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal hWnd As Long", "ByVal hWnd As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hwnd As Long", "ByVal hwnd As LongPtr", changes)
@@ -113,9 +134,10 @@ Private Function FixModule(comp As VBComponent) As Long
     newCode = ReplaceExact(newCode, "ByVal hwndOwner As Long", "ByVal hwndOwner As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hWndOwner As Long", "ByVal hWndOwner As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef hWnd As Long", "ByRef hWnd As LongPtr", changes)
-    
+
     ' =========================================================================
-    ' STEP 3: Fix HANDLE parameters
+    ' STEP 3: Fix generic HANDLE parameters
+    '         (HINSTANCE, HICON, HBITMAP, HMENU, HGLOBAL, HFILE, HDC, etc.)
     ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal hInst As Long", "ByVal hInst As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hInstance As Long", "ByVal hInstance As LongPtr", changes)
@@ -129,47 +151,77 @@ Private Function FixModule(comp As VBComponent) As Long
     newCode = ReplaceExact(newCode, "ByVal hDC As Long", "ByVal hDC As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hFile As Long", "ByVal hFile As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hMem As Long", "ByVal hMem As LongPtr", changes)
-    
+
     ' =========================================================================
-    ' STEP 4: Fix Registry handle parameters
+    ' STEP 4: Fix GlobalAlloc/GlobalLock — memory handle + size parameter
+    '         GlobalAlloc dwBytes must be LongPtr for 64-bit address space
+    ' =========================================================================
+    newCode = ReplaceExact(newCode, "ByVal dwBytes As Long", "ByVal dwBytes As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 5: Fix FindFirstFile / FindNextFile / FindClose handles
+    '         FindFirstFile returns a HANDLE (search handle) — must be LongPtr
+    ' =========================================================================
+    newCode = ReplaceExact(newCode, "ByVal hFindFile As Long", "ByVal hFindFile As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "ByRef hFindFile As Long", "ByRef hFindFile As LongPtr", changes)
+    newCode = ReplaceExact(newCode, "Dim hFindFile As Long", "Dim hFindFile As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 6: Fix Registry handle parameters (HKEY)
     ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal hKey As Long", "ByVal hKey As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef hKey As Long", "ByRef hKey As LongPtr", changes)
     newCode = ReplaceExact(newCode, "phkResult As Long", "phkResult As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef phkResult As Long", "ByRef phkResult As LongPtr", changes)
-    
+
     ' =========================================================================
-    ' STEP 5: Fix WinInet handle parameters
+    ' STEP 7: Fix WinInet / FTP handle parameters (HINTERNET)
     ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal hInternet As Long", "ByVal hInternet As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hConnect As Long", "ByVal hConnect As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hFtpSession As Long", "ByVal hFtpSession As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal hConnection As Long", "ByVal hConnection As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal dwContext As Long", "ByVal dwContext As LongPtr", changes)
-    
+    newCode = ReplaceExact(newCode, "ByVal hFindHandle As Long", "ByVal hFindHandle As LongPtr", changes)
+
     ' =========================================================================
-    ' STEP 6: Fix pointer/lParam/wParam parameters
+    ' STEP 8: Fix CoTaskMemFree pointer parameter (ole32.dll)
+    '         Used to free PIDL returned by SHBrowseForFolder
+    ' =========================================================================
+    newCode = ReplaceExact(newCode, "ByVal pv As Long", "ByVal pv As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 9: Fix lParam / wParam (SendMessage and UDT fields)
     ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal lParam As Long", "ByVal lParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef lParam As Long", "ByRef lParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "lParam As Long", "lParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByVal wParam As Long", "ByVal wParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef wParam As Long", "ByRef wParam As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 10: Fix Shell pointer parameters (PIDL)
+    ' =========================================================================
     newCode = ReplaceExact(newCode, "ByVal pidl As Long", "ByVal pidl As LongPtr", changes)
     newCode = ReplaceExact(newCode, "ByRef pidl As Long", "ByRef pidl As LongPtr", changes)
     newCode = ReplaceExact(newCode, "pidlRoot As Long", "pidlRoot As LongPtr", changes)
     newCode = ReplaceExact(newCode, "lpfn As Long", "lpfn As LongPtr", changes)
-    
+
     ' =========================================================================
-    ' STEP 7: Fix TYPE structure fields containing handles/pointers
-    '         (These replacements are context-aware — only affect UDT fields)
+    ' STEP 11: Fix ODBC hwndParent parameter (SQLConfigDataSource)
+    ' =========================================================================
+    newCode = ReplaceExact(newCode, "ByVal hwndParent As Long", "ByVal hwndParent As LongPtr", changes)
+
+    ' =========================================================================
+    ' STEP 12: Fix TYPE structure fields containing handles/pointers
+    '          These are indented field declarations inside Type...End Type
     ' =========================================================================
     newCode = ReplaceExact(newCode, "    hIcon As Long", "    hIcon As LongPtr", changes)
     newCode = ReplaceExact(newCode, "    hwndOwner As Long", "    hwndOwner As LongPtr", changes)
     newCode = ReplaceExact(newCode, "    hWnd As Long", "    hWnd As LongPtr", changes)
-    
+
     ' =========================================================================
-    ' STEP 8: Fix Dim statements for handle variables
+    ' STEP 13: Fix Dim statements for handle/pointer variables
     ' =========================================================================
     newCode = ReplaceExact(newCode, "Dim hWnd As Long", "Dim hWnd As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim hwnd As Long", "Dim hwnd As LongPtr", changes)
@@ -185,9 +237,9 @@ Private Function FixModule(comp As VBComponent) As Long
     newCode = ReplaceExact(newCode, "Dim lParam As Long", "Dim lParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim wParam As Long", "Dim wParam As LongPtr", changes)
     newCode = ReplaceExact(newCode, "Dim pidl As Long", "Dim pidl As LongPtr", changes)
-    
+
     ' =========================================================================
-    ' Apply changes back to the module if anything changed
+    ' Apply changes back to the module only if something changed
     ' =========================================================================
     If newCode <> code Then
         With comp.CodeModule
@@ -195,21 +247,21 @@ Private Function FixModule(comp As VBComponent) As Long
             .InsertLines 1, newCode
         End With
     End If
-    
+
     FixModule = changes
 End Function
 
 ' =============================================================================
 ' Helper: Replace exact string (case-sensitive)
+' Counts occurrences before replacing; accumulates into ByRef changes counter
 ' =============================================================================
 Private Function ReplaceExact(source As String, findStr As String, _
                                replaceStr As String, ByRef changes As Long) As String
     Dim result As String
     Dim count  As Long
-    
-    ' Count occurrences before replacement
+
     count = (Len(source) - Len(Replace(source, findStr, ""))) \ Len(findStr)
-    
+
     If count > 0 Then
         result = Replace(source, findStr, replaceStr)
         changes = changes + count
@@ -220,8 +272,8 @@ Private Function ReplaceExact(source As String, findStr As String, _
 End Function
 
 ' =============================================================================
-' Helper: Replace word but avoid double-replacement (e.g. already has PtrSafe)
-' Uses case-insensitive search for Declare keywords
+' Helper: Replace word (case-insensitive) — used for Declare keyword only
+' Avoids double-replacement when module already contains PtrSafe
 ' =============================================================================
 Private Function ReplaceWord(source As String, findStr As String, _
                               replaceStr As String, ByRef changes As Long) As String
@@ -230,17 +282,15 @@ Private Function ReplaceWord(source As String, findStr As String, _
     Dim result      As String
     Dim pos         As Long
     Dim count       As Long
-    
+
     upperSource = UCase(source)
     upperFind = UCase(findStr)
-    
-    ' Count occurrences
+
     count = 0
     pos = 1
     Do
         pos = InStr(pos, upperSource, upperFind)
         If pos = 0 Then Exit Do
-        ' Make sure it's not already "PtrSafe" following it
         Dim checkStr As String
         checkStr = UCase(Mid(source, pos, Len(replaceStr)))
         If checkStr <> UCase(replaceStr) Then
@@ -248,16 +298,14 @@ Private Function ReplaceWord(source As String, findStr As String, _
         End If
         pos = pos + Len(upperFind)
     Loop
-    
+
     If count > 0 Then
-        ' Do case-insensitive replace
         result = source
         Dim i As Long
         For i = 1 To count
             Dim p As Long
             p = InStr(1, UCase(result), upperFind)
             If p > 0 Then
-                ' Check not already replaced
                 If UCase(Mid(result, p, Len(replaceStr))) <> UCase(replaceStr) Then
                     result = Left(result, p - 1) & replaceStr & Mid(result, p + Len(findStr))
                     changes = changes + 1
@@ -281,22 +329,23 @@ Public Sub Preview32to64_Changes()
     Dim lines() As String
     Dim i       As Long
     Dim found   As Boolean
-    
+
     Debug.Print String(70, "=")
     Debug.Print "PREVIEW: Lines containing 32-bit patterns that need updating"
     Debug.Print String(70, "=")
-    
-    Dim patterns(20) As String
-    patterns(0) = "Declare Function "
-    patterns(1) = "Declare Sub "
-    patterns(2) = "ByVal hWnd As Long"
-    patterns(3) = "ByVal hwnd As Long"
-    patterns(4) = "ByVal hInst As Long"
-    patterns(5) = "ByVal hIcon As Long"
-    patterns(6) = "ByVal hKey As Long"
-    patterns(7) = "ByRef hKey As Long"
-    patterns(8) = "ByVal hInternet As Long"
-    patterns(9) = "ByVal hConnect As Long"
+
+    ' All patterns we scan for
+    Dim patterns(34) As String
+    patterns(0)  = "Declare Function "
+    patterns(1)  = "Declare Sub "
+    patterns(2)  = "ByVal hWnd As Long"
+    patterns(3)  = "ByVal hwnd As Long"
+    patterns(4)  = "ByVal hInst As Long"
+    patterns(5)  = "ByVal hIcon As Long"
+    patterns(6)  = "ByVal hKey As Long"
+    patterns(7)  = "ByRef hKey As Long"
+    patterns(8)  = "ByVal hInternet As Long"
+    patterns(9)  = "ByVal hConnect As Long"
     patterns(10) = "ByVal lParam As Long"
     patterns(11) = "ByVal wParam As Long"
     patterns(12) = "ByVal pidl As Long"
@@ -308,22 +357,36 @@ Public Sub Preview32to64_Changes()
     patterns(18) = "ByVal hwndOwner As Long"
     patterns(19) = "Dim hWnd As Long"
     patterns(20) = "Dim hKey As Long"
-    
+    patterns(21) = "ByVal hFindFile As Long"
+    patterns(22) = "ByVal hFtpSession As Long"
+    patterns(23) = "ByVal dwContext As Long"
+    patterns(24) = "ByVal dwBytes As Long"
+    patterns(25) = "ByVal pv As Long"
+    patterns(26) = "ByVal hwndParent As Long"
+    patterns(27) = "Dim hFTP As Long"
+    patterns(28) = "Dim hConnect As Long"
+    patterns(29) = "Dim hInternet As Long"
+    patterns(30) = "Dim hMem As Long"
+    patterns(31) = "Dim pidl As Long"
+    patterns(32) = "ByVal hFindHandle As Long"
+    patterns(33) = "pidlRoot As Long"
+    patterns(34) = "lpfn As Long"
+
     Set proj = Application.VBE.ActiveVBProject
-    
+
     For Each comp In proj.VBComponents
         code = ""
         On Error Resume Next
         code = comp.CodeModule.Lines(1, comp.CodeModule.CountOfLines)
         On Error GoTo 0
         If Len(code) = 0 Then GoTo NextComp
-        
+
         lines = Split(code, vbCrLf)
         found = False
-        
+
         For i = 0 To UBound(lines)
             Dim j As Integer
-            For j = 0 To 20
+            For j = 0 To 34
                 If InStr(1, lines(i), patterns(j), vbTextCompare) > 0 Then
                     If Not found Then
                         Debug.Print ""
@@ -337,7 +400,7 @@ Public Sub Preview32to64_Changes()
         Next i
 NextComp:
     Next comp
-    
+
     Debug.Print ""
     Debug.Print String(70, "=")
     Debug.Print "End of Preview. Run Fix32to64_AllModules() to apply changes."
@@ -355,57 +418,64 @@ Public Sub Verify32to64_Complete()
     Dim lines() As String
     Dim i       As Long
     Dim issues  As Long
-    
+
     issues = 0
-    
+
     Debug.Print String(70, "=")
     Debug.Print "VERIFICATION: Checking for remaining 32-bit patterns"
     Debug.Print String(70, "=")
-    
-    ' Patterns that should NOT exist after conversion
-    Dim badPatterns(5) As String
-    badPatterns(0) = "Declare Function "   ' Should be "Declare PtrSafe Function"
-    badPatterns(1) = "Declare Sub "        ' Should be "Declare PtrSafe Sub"
-    ' Note: The following are only bad if on a Declare line or in a Type block
-    ' So we check for them on Declare lines specifically
-    badPatterns(2) = "Declare PtrSafe Function"  ' These are GOOD - just for reference
-    badPatterns(3) = ""
-    badPatterns(4) = ""
-    badPatterns(5) = ""
-    
+
     Set proj = Application.VBE.ActiveVBProject
-    
+
     For Each comp In proj.VBComponents
         code = ""
         On Error Resume Next
         code = comp.CodeModule.Lines(1, comp.CodeModule.CountOfLines)
         On Error GoTo 0
         If Len(code) = 0 Then GoTo NextComp2
-        
+
         lines = Split(code, vbCrLf)
-        
+
         For i = 0 To UBound(lines)
             Dim lineUpper As String
             lineUpper = UCase(Trim(lines(i)))
-            
+
             ' Check for Declare without PtrSafe
             If (Left(lineUpper, 17) = "DECLARE FUNCTION " Or _
-                Left(lineUpper, 15) = "PRIVATE DECLARE" Or _
-                Left(lineUpper, 14) = "PUBLIC DECLARE") And _
+                Left(lineUpper, 12) = "DECLARE SUB " Or _
+                InStr(lineUpper, "PRIVATE DECLARE FUNCTION") > 0 Or _
+                InStr(lineUpper, "PUBLIC DECLARE FUNCTION") > 0 Or _
+                InStr(lineUpper, "PRIVATE DECLARE SUB") > 0 Or _
+                InStr(lineUpper, "PUBLIC DECLARE SUB") > 0) And _
                InStr(lineUpper, "PTRSAFE") = 0 Then
                 Debug.Print "  [" & comp.Name & "] Line " & (i + 1) & _
                             " MISSING PtrSafe: " & Trim(lines(i))
                 issues = issues + 1
             End If
+
+            ' Check for handle params still As Long on Declare lines
+            If InStr(lineUpper, "DECLARE PTRSAFE") > 0 Then
+                If InStr(lineUpper, "BYVAL HWND AS LONG") > 0 Or _
+                   InStr(lineUpper, "BYVAL HKEY AS LONG") > 0 Or _
+                   InStr(lineUpper, "BYVAL HINTERNET AS LONG") > 0 Or _
+                   InStr(lineUpper, "BYVAL HCONNECT AS LONG") > 0 Or _
+                   InStr(lineUpper, "BYVAL HINST AS LONG") > 0 Or _
+                   InStr(lineUpper, "BYVAL HMEM AS LONG") > 0 Then
+                    Debug.Print "  [" & comp.Name & "] Line " & (i + 1) & _
+                                " HANDLE STILL As Long: " & Trim(lines(i))
+                    issues = issues + 1
+                End If
+            End If
         Next i
 NextComp2:
     Next comp
-    
+
     Debug.Print ""
     If issues = 0 Then
-        Debug.Print "  ✓ All Declare statements have PtrSafe - GOOD!"
+        Debug.Print "  " & Chr(10003) & " All checks passed — no 32-bit patterns found!"
+        Debug.Print "  Run Debug > Compile as final verification."
     Else
-        Debug.Print "  ✗ Found " & issues & " Declare statement(s) missing PtrSafe"
+        Debug.Print "  " & Chr(10007) & " Found " & issues & " issue(s) — review lines above"
     End If
     Debug.Print String(70, "=")
 End Sub

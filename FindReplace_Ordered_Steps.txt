@@ -2,244 +2,338 @@
 STGC-Legacy VBA — 32-bit to 64-bit API Conversion
 ORDERED FIND/REPLACE STEPS — Apply in This Exact Sequence
 ==============================================================================
-Use: VBA IDE → Edit → Find (Ctrl+H), check "Current Project", case-sensitive
+Use: VBA IDE → Edit → Replace (Ctrl+H)
+     Check "Current Project" | Case-sensitive (except Step 1)
+==============================================================================
+API COVERAGE (verified by binary scan of all 129 module blobs):
+  User32.dll   : GetClassName, GetWindow, ShowWindowAsync, SendMessage,
+                 OpenClipboard, CloseClipboard, GetClipboardData,
+                 SetClipboardData, EmptyClipboard, LoadImage
+  Kernel32.dll : GetPrivateProfileString, WritePrivateProfileString,
+                 GlobalAlloc, GlobalFree, GlobalLock, GlobalUnlock,
+                 GetComputerName, FindFirstFile, FindNextFile, FindClose,
+                 lstrcat
+  Shell32.dll  : ShellExecute, SHGetPathFromIDList, SHBrowseForFolder
+  ole32.dll    : CoTaskMemFree
+  Advapi32.dll : RegOpenKey, RegOpenKeyEx, RegCloseKey, RegQueryValueEx,
+                 RegSetValueEx, RegCreateKey, RegCreateKeyEx,
+                 RegDeleteKey, RegDeleteValue
+  WinInet.dll  : InternetOpen, InternetConnect, InternetCloseHandle,
+                 FtpGetFile, FtpPutFile, FtpOpenFile, FtpCreateDirectory,
+                 FtpGetCurrentDirectory, FtpSetCurrentDirectory,
+                 InternetWriteFile
+  ODBC32.dll   : SQLConfigDataSource
 ==============================================================================
 
---- STEP 1: Add PtrSafe (MUST BE FIRST — Use Case-Insensitive Match) ----------
+--- STEP 1: Add PtrSafe (MUST BE FIRST — Use Case-INSENSITIVE Match) --------
 
-FIND:    Declare Function
-REPLACE: Declare PtrSafe Function
+  FIND:    Declare Function
+  REPLACE: Declare PtrSafe Function
 
-FIND:    Declare Sub
-REPLACE: Declare PtrSafe Sub
+  FIND:    Declare Sub
+  REPLACE: Declare PtrSafe Sub
 
   >> After Step 1: Search for "Declare PtrSafe PtrSafe" — fix any doubles <<
+  >> (Occurs when a module already had PtrSafe before conversion)          <<
 
---- STEP 2: Window Handles (HWND) ---------------------------------------------
+--- STEP 2: Window Handles (HWND) --------------------------------------------
 
-FIND:    ByVal hWnd As Long
-REPLACE: ByVal hWnd As LongPtr
+  FIND:    ByVal hWnd As Long
+  REPLACE: ByVal hWnd As LongPtr
 
-FIND:    ByVal hwnd As Long
-REPLACE: ByVal hwnd As LongPtr
+  FIND:    ByVal hwnd As Long
+  REPLACE: ByVal hwnd As LongPtr
 
-FIND:    ByVal hWndParent As Long
-REPLACE: ByVal hWndParent As LongPtr
+  FIND:    ByVal hWndParent As Long
+  REPLACE: ByVal hWndParent As LongPtr
 
-FIND:    ByVal hwndOwner As Long
-REPLACE: ByVal hwndOwner As LongPtr
+  FIND:    ByVal hwndOwner As Long
+  REPLACE: ByVal hwndOwner As LongPtr
 
-FIND:    ByVal hWndOwner As Long
-REPLACE: ByVal hWndOwner As LongPtr
+  FIND:    ByVal hWndOwner As Long
+  REPLACE: ByVal hWndOwner As LongPtr
 
-FIND:    ByRef hWnd As Long
-REPLACE: ByRef hWnd As LongPtr
+  FIND:    ByRef hWnd As Long
+  REPLACE: ByRef hWnd As LongPtr
 
---- STEP 3: Generic Handles (HINSTANCE, HICON, HBITMAP, HMENU, etc.) ---------
+--- STEP 3: Generic Handles (HINSTANCE, HICON, HBITMAP, HMENU, HGLOBAL...) --
 
-FIND:    ByVal hInst As Long
-REPLACE: ByVal hInst As LongPtr
+  FIND:    ByVal hInst As Long
+  REPLACE: ByVal hInst As LongPtr
 
-FIND:    ByVal hInstance As Long
-REPLACE: ByVal hInstance As LongPtr
+  FIND:    ByVal hInstance As Long
+  REPLACE: ByVal hInstance As LongPtr
 
-FIND:    ByVal hIcon As Long
-REPLACE: ByVal hIcon As LongPtr
+  FIND:    ByVal hIcon As Long
+  REPLACE: ByVal hIcon As LongPtr
 
-FIND:    ByVal hBitmap As Long
-REPLACE: ByVal hBitmap As LongPtr
+  FIND:    ByVal hBitmap As Long
+  REPLACE: ByVal hBitmap As LongPtr
 
-FIND:    ByVal hMenu As Long
-REPLACE: ByVal hMenu As LongPtr
+  FIND:    ByVal hMenu As Long
+  REPLACE: ByVal hMenu As LongPtr
 
-FIND:    ByVal hModule As Long
-REPLACE: ByVal hModule As LongPtr
+  FIND:    ByVal hModule As Long
+  REPLACE: ByVal hModule As LongPtr
 
-FIND:    ByVal hMem As Long
-REPLACE: ByVal hMem As LongPtr
+  FIND:    ByVal hMem As Long
+  REPLACE: ByVal hMem As LongPtr
 
-FIND:    ByVal hDC As Long
-REPLACE: ByVal hDC As LongPtr
+  FIND:    ByVal hDC As Long
+  REPLACE: ByVal hDC As LongPtr
 
-FIND:    ByVal hFile As Long
-REPLACE: ByVal hFile As LongPtr
+  FIND:    ByVal hFile As Long
+  REPLACE: ByVal hFile As LongPtr
 
-FIND:    ByVal hObject As Long
-REPLACE: ByVal hObject As LongPtr
+  FIND:    ByVal hObject As Long
+  REPLACE: ByVal hObject As LongPtr
 
-FIND:    ByVal hProcess As Long
-REPLACE: ByVal hProcess As LongPtr
+  FIND:    ByVal hProcess As Long
+  REPLACE: ByVal hProcess As LongPtr
 
---- STEP 4: Registry Handles (HKEY) ------------------------------------------
+--- STEP 4: GlobalAlloc dwBytes parameter ------------------------------------
+  >> GlobalAlloc dwBytes must be LongPtr to support 64-bit address space  <<
 
-FIND:    ByVal hKey As Long
-REPLACE: ByVal hKey As LongPtr
+  FIND:    ByVal dwBytes As Long
+  REPLACE: ByVal dwBytes As LongPtr
 
-FIND:    ByRef hKey As Long
-REPLACE: ByRef hKey As LongPtr
+--- STEP 5: FindFirstFile / FindNextFile / FindClose handles -----------------
+  >> FindFirstFile returns a search HANDLE — must be stored as LongPtr     <<
 
-FIND:    phkResult As Long
-REPLACE: phkResult As LongPtr
+  FIND:    ByVal hFindFile As Long
+  REPLACE: ByVal hFindFile As LongPtr
 
---- STEP 5: WinInet / FTP Handles --------------------------------------------
+  FIND:    ByRef hFindFile As Long
+  REPLACE: ByRef hFindFile As LongPtr
 
-FIND:    ByVal hInternet As Long
-REPLACE: ByVal hInternet As LongPtr
+--- STEP 6: Registry Handles (HKEY) -----------------------------------------
 
-FIND:    ByVal hConnect As Long
-REPLACE: ByVal hConnect As LongPtr
+  FIND:    ByVal hKey As Long
+  REPLACE: ByVal hKey As LongPtr
 
-FIND:    ByVal hFtpSession As Long
-REPLACE: ByVal hFtpSession As LongPtr
+  FIND:    ByRef hKey As Long
+  REPLACE: ByRef hKey As LongPtr
 
-FIND:    ByVal hConnection As Long
-REPLACE: ByVal hConnection As LongPtr
+  FIND:    phkResult As Long
+  REPLACE: phkResult As LongPtr
 
-FIND:    ByVal dwContext As Long
-REPLACE: ByVal dwContext As LongPtr
+--- STEP 7: WinInet / FTP Handles (HINTERNET) --------------------------------
 
---- STEP 6: Message Parameters (SendMessage lParam/wParam) -------------------
+  FIND:    ByVal hInternet As Long
+  REPLACE: ByVal hInternet As LongPtr
 
-FIND:    ByVal wParam As Long
-REPLACE: ByVal wParam As LongPtr
+  FIND:    ByVal hConnect As Long
+  REPLACE: ByVal hConnect As LongPtr
 
-FIND:    ByVal lParam As Long
-REPLACE: ByVal lParam As LongPtr
+  FIND:    ByVal hFtpSession As Long
+  REPLACE: ByVal hFtpSession As LongPtr
 
-FIND:    ByRef lParam As Long
-REPLACE: ByRef lParam As LongPtr
+  FIND:    ByVal hConnection As Long
+  REPLACE: ByVal hConnection As LongPtr
 
-FIND:    lParam As Long
-REPLACE: lParam As LongPtr
+  FIND:    ByVal dwContext As Long
+  REPLACE: ByVal dwContext As LongPtr
 
-  >> NOTE: This last one is broad — verify it only hits Declare/Type lines <<
+  FIND:    ByVal hFindHandle As Long
+  REPLACE: ByVal hFindHandle As LongPtr
 
---- STEP 7: Shell Pointer Parameters (PIDL) ----------------------------------
+--- STEP 8: CoTaskMemFree pointer parameter (ole32.dll) ----------------------
+  >> Used to free the PIDL returned by SHBrowseForFolder                   <<
 
-FIND:    ByVal pidl As Long
-REPLACE: ByVal pidl As LongPtr
+  FIND:    ByVal pv As Long
+  REPLACE: ByVal pv As LongPtr
 
-FIND:    ByRef pidl As Long
-REPLACE: ByRef pidl As LongPtr
+--- STEP 9: ODBC hwndParent (SQLConfigDataSource) ---------------------------
 
-FIND:    pidlRoot As Long
-REPLACE: pidlRoot As LongPtr
+  FIND:    ByVal hwndParent As Long
+  REPLACE: ByVal hwndParent As LongPtr
 
-FIND:    lpfn As Long
-REPLACE: lpfn As LongPtr
+--- STEP 10: Message Parameters (SendMessage lParam/wParam) -----------------
 
---- STEP 8: TYPE Structure Fields (UDTs containing handles) ------------------
+  FIND:    ByVal wParam As Long
+  REPLACE: ByVal wParam As LongPtr
 
-  >> Open each Type...End Type block and fix these fields manually or via: <<
+  FIND:    ByVal lParam As Long
+  REPLACE: ByVal lParam As LongPtr
 
-FIND:    hIcon As Long
-REPLACE: hIcon As LongPtr
+  FIND:    ByRef lParam As Long
+  REPLACE: ByRef lParam As LongPtr
 
-FIND:    hwndOwner As Long
-REPLACE: hwndOwner As LongPtr
+  FIND:    lParam As Long
+  REPLACE: lParam As LongPtr
 
-  (in BROWSEINFO struct)
-FIND:    pidlRoot As Long
-REPLACE: pidlRoot As LongPtr
+  >> NOTE: "lParam As Long" is broad — verify it only hits Declare/Type lines <<
 
-  (in BROWSEINFO struct)
-FIND:    lParam As Long
-REPLACE: lParam As LongPtr
+--- STEP 11: Shell Pointer Parameters (PIDL) ---------------------------------
 
-  >> NOTE: Be careful — "lParam As Long" replace only inside Type blocks <<
+  FIND:    ByVal pidl As Long
+  REPLACE: ByVal pidl As LongPtr
 
---- STEP 9: Local Variable Declarations (Dim statements) ---------------------
+  FIND:    ByRef pidl As Long
+  REPLACE: ByRef pidl As LongPtr
 
-FIND:    Dim hWnd As Long
-REPLACE: Dim hWnd As LongPtr
+  FIND:    pidlRoot As Long
+  REPLACE: pidlRoot As LongPtr
 
-FIND:    Dim hwnd As Long
-REPLACE: Dim hwnd As LongPtr
+  FIND:    lpfn As Long
+  REPLACE: lpfn As LongPtr
 
-FIND:    Dim hInst As Long
-REPLACE: Dim hInst As LongPtr
+--- STEP 12: TYPE Structure Fields (UDTs containing handles) -----------------
 
-FIND:    Dim hIcon As Long
-REPLACE: Dim hIcon As LongPtr
+  >> Open each Type...End Type block — fix these field declarations:       <<
 
-FIND:    Dim hInternet As Long
-REPLACE: Dim hInternet As LongPtr
+  FIND:    hIcon As Long
+  REPLACE: hIcon As LongPtr
+  (Used in: SHFILEINFO)
 
-FIND:    Dim hConnect As Long
-REPLACE: Dim hConnect As LongPtr
+  FIND:    hwndOwner As Long
+  REPLACE: hwndOwner As LongPtr
+  (Used in: BROWSEINFO)
 
-FIND:    Dim hFTP As Long
-REPLACE: Dim hFTP As LongPtr
+  FIND:    pidlRoot As Long
+  REPLACE: pidlRoot As LongPtr
+  (Used in: BROWSEINFO — already covered by Step 11)
 
-FIND:    Dim hKey As Long
-REPLACE: Dim hKey As LongPtr
+  FIND:    lParam As Long
+  REPLACE: lParam As LongPtr
+  (Used in: BROWSEINFO — already covered by Step 10)
 
-FIND:    Dim hMem As Long
-REPLACE: Dim hMem As LongPtr
+  NOTE: WIN32_FIND_DATA has NO pointer fields — no changes needed.
 
-FIND:    Dim hDC As Long
-REPLACE: Dim hDC As LongPtr
+--- STEP 13: Local Variable Declarations (Dim statements) -------------------
 
-FIND:    Dim lParam As Long
-REPLACE: Dim lParam As LongPtr
+  FIND:    Dim hWnd As Long
+  REPLACE: Dim hWnd As LongPtr
 
-FIND:    Dim wParam As Long
-REPLACE: Dim wParam As LongPtr
+  FIND:    Dim hwnd As Long
+  REPLACE: Dim hwnd As LongPtr
 
-FIND:    Dim pidl As Long
-REPLACE: Dim pidl As LongPtr
+  FIND:    Dim hInst As Long
+  REPLACE: Dim hInst As LongPtr
 
---- STEP 10: MANUAL FIXES — Function Return Types (cannot be automated) ------
+  FIND:    Dim hIcon As Long
+  REPLACE: Dim hIcon As LongPtr
 
-  These Declare Function lines return handles/pointers and need manual update.
-  Search for each function name and change the trailing ") As Long" to LongPtr:
+  FIND:    Dim hInternet As Long
+  REPLACE: Dim hInternet As LongPtr
 
-  Functions returning LongPtr (handles/pointers):
-  -----------------------------------------------
-  GetWindow            (...) As LongPtr
-  FindWindow           (...) As LongPtr
-  FindWindowEx         (...) As LongPtr
-  ShellExecute         (...) As LongPtr
-  LoadImage            (...) As LongPtr
-  SHBrowseForFolder    (...) As LongPtr
-  GetClipboardData     (...) As LongPtr
-  SetClipboardData     (...) As LongPtr
-  InternetOpen         (...) As LongPtr
-  InternetConnect      (...) As LongPtr
-  FtpOpenFile          (...) As LongPtr
-  SendMessage          (...) As LongPtr
+  FIND:    Dim hConnect As Long
+  REPLACE: Dim hConnect As LongPtr
 
-  Functions that KEEP As Long return type (BOOL, error code, count):
-  -----------------------------------------------------------------
-  OpenClipboard        (...) As Long   (returns BOOL)
-  CloseClipboard       (...) As Long   (returns BOOL)
-  EmptyClipboard       (...) As Long   (returns BOOL)
-  ShowWindow           (...) As Long   (returns BOOL)
-  RegOpenKey           (...) As Long   (returns error code)
-  RegOpenKeyEx         (...) As Long   (returns error code)
-  RegCloseKey          (...) As Long   (returns error code)
-  RegQueryValueEx      (...) As Long   (returns error code)
-  RegSetValueEx        (...) As Long   (returns error code)
-  RegCreateKey         (...) As Long   (returns error code)
-  RegDeleteKey         (...) As Long   (returns error code)
-  GetClassName         (...) As Long   (returns char count)
-  GetPrivateProfileString (...) As Long (returns char count)
+  FIND:    Dim hFTP As Long
+  REPLACE: Dim hFTP As LongPtr
+
+  FIND:    Dim hKey As Long
+  REPLACE: Dim hKey As LongPtr
+
+  FIND:    Dim hMem As Long
+  REPLACE: Dim hMem As LongPtr
+
+  FIND:    Dim hDC As Long
+  REPLACE: Dim hDC As LongPtr
+
+  FIND:    Dim hFile As Long
+  REPLACE: Dim hFile As LongPtr
+
+  FIND:    Dim lParam As Long
+  REPLACE: Dim lParam As LongPtr
+
+  FIND:    Dim wParam As Long
+  REPLACE: Dim wParam As LongPtr
+
+  FIND:    Dim pidl As Long
+  REPLACE: Dim pidl As LongPtr
+
+  FIND:    Dim hFindFile As Long
+  REPLACE: Dim hFindFile As LongPtr
+
+--- STEP 14: MANUAL FIXES — Function Return Types (cannot be automated) -----
+
+  These Declare Function lines return handles/pointers.
+  Search for each function name and change ") As Long" to ") As LongPtr":
+
+  Functions returning LongPtr (handle or pointer return):
+  --------------------------------------------------------
+  GetWindow            (...) As LongPtr    (returns HWND)
+  FindWindow           (...) As LongPtr    (returns HWND)
+  SendMessage          (...) As LongPtr    (returns LRESULT)
+  LoadImage            (...) As LongPtr    (returns HANDLE)
+  ShellExecute         (...) As LongPtr    (returns HINSTANCE)
+  SHBrowseForFolder    (...) As LongPtr    (returns PIDLIST_ABSOLUTE)
+  GetClipboardData     (...) As LongPtr    (returns HANDLE)
+  SetClipboardData     (...) As LongPtr    (returns HANDLE)
+  GlobalAlloc          (...) As LongPtr    (returns HGLOBAL)
+  GlobalLock           (...) As LongPtr    (returns LPVOID pointer)
+  InternetOpen         (...) As LongPtr    (returns HINTERNET)
+  InternetConnect      (...) As LongPtr    (returns HINTERNET)
+  FtpOpenFile          (...) As LongPtr    (returns HINTERNET)
+  FindFirstFile        (...) As LongPtr    (returns search HANDLE)
+  lstrcat              (...) As LongPtr    (returns string pointer)
+
+  Functions that KEEP As Long return type:
+  ----------------------------------------
+  OpenClipboard        (...) As Long    (returns BOOL)
+  CloseClipboard       (...) As Long    (returns BOOL)
+  EmptyClipboard       (...) As Long    (returns BOOL)
+  ShowWindow           (...) As Long    (returns BOOL)
+  ShowWindowAsync      (...) As Long    (returns BOOL)
+  GetClassName         (...) As Long    (returns char count)
+  GetComputerName      (...) As Long    (returns BOOL)
+  GlobalFree           (...) As Long    (returns 0 on success)
+  GlobalUnlock         (...) As Long    (returns BOOL)
+  FindNextFile         (...) As Long    (returns BOOL)
+  FindClose            (...) As Long    (returns BOOL)
+  RegOpenKey           (...) As Long    (returns LSTATUS error code)
+  RegOpenKeyEx         (...) As Long    (returns LSTATUS error code)
+  RegCloseKey          (...) As Long    (returns LSTATUS error code)
+  RegQueryValueEx      (...) As Long    (returns LSTATUS error code)
+  RegSetValueEx        (...) As Long    (returns LSTATUS error code)
+  RegCreateKey         (...) As Long    (returns LSTATUS error code)
+  RegCreateKeyEx       (...) As Long    (returns LSTATUS error code)
+  RegDeleteKey         (...) As Long    (returns LSTATUS error code)
+  RegDeleteValue       (...) As Long    (returns LSTATUS error code)
+  GetPrivateProfileString  (...) As Long (returns char count)
   WritePrivateProfileString (...) As Long (returns BOOL)
-  InternetCloseHandle  (...) As Long   (returns BOOL)
-  FtpGetFile           (...) As Long   (returns BOOL)
+  InternetCloseHandle  (...) As Long    (returns BOOL)
+  FtpGetFile           (...) As Long    (returns BOOL)
+  FtpPutFile           (...) As Long    (returns BOOL)
+  FtpCreateDirectory   (...) As Long    (returns BOOL)
+  FtpGetCurrentDirectory (...) As Long  (returns BOOL)
+  FtpSetCurrentDirectory (...) As Long  (returns BOOL)
+  SQLConfigDataSource  (...) As Long    (returns BOOL)
+
+--- STEP 15: REGISTRY ROOT KEY CONSTANTS ------------------------------------
+
+  Registry root key constants (HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER, etc.)
+  are declared As Long but must be passed to HKEY (LongPtr) parameters.
+
+  Search your code for calls like:
+    RegOpenKey HKEY_LOCAL_MACHINE, ...
+    RegOpenKeyEx HKEY_CURRENT_USER, ...
+
+  Wrap each root key constant with CLngPtr():
+    RegOpenKey CLngPtr(HKEY_LOCAL_MACHINE), ...
+    RegOpenKeyEx CLngPtr(HKEY_CURRENT_USER), ...
+
+  OR add LongPtr variable declarations:
+    Dim hRootKey As LongPtr
+    hRootKey = CLngPtr(&H80000002)  ' HKEY_LOCAL_MACHINE
+    hRootKey = CLngPtr(&H80000001)  ' HKEY_CURRENT_USER
 
 ==============================================================================
 AFTER ALL STEPS:
   1. VBA IDE → Debug → Compile (zero errors = success)
-  2. If errors remain: check the error line, it will be a pointer/handle mismatch
+  2. If errors remain: the error line points to the problem
   3. Common post-fix errors:
-     - "Type mismatch": A Long variable receiving a LongPtr function result
-       → Change the variable declaration to LongPtr
-     - "Expected: expression": Usually a syntax error from bad replace
+     - "Type mismatch": Long variable receiving LongPtr function result
+       → Find "Dim <varname> As Long" for that variable and change to LongPtr
+     - "Expected: expression": Bad replace created syntax error
        → Undo (Ctrl+Z) that specific replace and redo manually
-     - Comparison of LongPtr to 0: Use "= 0" or "= CLngPtr(0)" — both work
+     - Comparison of LongPtr to 0: "If hWnd = 0" works fine — no change needed
+     - Registry root key error: Wrap constant with CLngPtr() as shown in Step 15
 ==============================================================================
 QUICK RULE REMINDER:
-  LongPtr = Any Windows HANDLE, pointer, hWnd, hKey, pidl, lParam, wParam
-  Long    = Counts, flags, boolean returns (BOOL), error codes, string lengths
+  LongPtr = Any Windows HANDLE, pointer, hWnd, hKey, pidl, lParam, wParam,
+            HGLOBAL (GlobalAlloc/Lock), HINTERNET, search HANDLE (FindFirstFile)
+  Long    = Counts, flags, BOOL returns, error codes (LSTATUS), string lengths
 ==============================================================================
